@@ -4,13 +4,13 @@ import java.io.FileReader;
 import java.io.File;
 
 public class WordCntRun implements Runnable {
-    private String inputStr;
+    private StringBuilder inputSb;
     private Hashtable<String, Integer> mainTable;
     private Map<String, Integer> wordCnt=new HashMap<>();
 
 
-    private WordCntRun(String _inputStr, Hashtable<String, Integer> _mainTable) {
-        inputStr=_inputStr;
+    private WordCntRun(StringBuilder _inputSb, Hashtable<String, Integer> _mainTable) {
+        inputSb =_inputSb;
         mainTable=_mainTable;
     }
 
@@ -34,20 +34,21 @@ public class WordCntRun implements Runnable {
 
     public void run() {
         int start=0;
-        for(int i=0; i<inputStr.length(); i++) {
-            if(isDelims(inputStr.charAt(i))) {
+        for(int i = 0; i< inputSb.length(); i++) {
+            if(isDelims(inputSb.charAt(i))) {
                 if(i-1>=start) {
-                    String word=inputStr.substring(start, i);
+                    String word= inputSb.substring(start, i);
                     wordCnt.put(word, wordCnt.getOrDefault(word, 0)+1);
                 }
                 start=i+1;
             }
         }
-        if(!isDelims(inputStr.charAt(inputStr.length()-1))) {
-            String word=inputStr.substring(start);
+        if(!isDelims(inputSb.charAt(inputSb.length()-1))) {
+            String word= inputSb.substring(start);
             wordCnt.put(word, wordCnt.getOrDefault(word, 0)+1);
         }
         updateToMainTable();
+        inputSb=null;
     }
 
     public static void main(String[] args) throws Exception {
@@ -90,7 +91,7 @@ public class WordCntRun implements Runnable {
                     charValue=reader.read();
                 }
             }
-            Thread thread=new Thread(new WordCntRun(sb.toString(), mainTable));
+            Thread thread=new Thread(new WordCntRun(sb, mainTable));
             thread.start();
             threadList.add(thread);
         }
