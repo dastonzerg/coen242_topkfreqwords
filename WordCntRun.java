@@ -10,7 +10,8 @@ public class WordCntRun implements Runnable {
     private Map<String, Integer> wordCnt=null;
     private BufferedReader reader;
     private ReentrantLock lock;
-    private final int chunkSize=5000_0000;
+    private final int chunkSize=102_4000;
+    private char[] tempCharArr=new char[chunkSize];
 
     private WordCntRun(Hashtable<String, Integer> _mainTable, BufferedReader _reader, ReentrantLock _lock) {
         mainTable=_mainTable;
@@ -31,12 +32,12 @@ public class WordCntRun implements Runnable {
     private void fetchSb() throws Exception {
         inputSb=new StringBuilder();
         wordCnt=new HashMap<>();
-        for(int i=1; i<=chunkSize; i++) {
-            int charValue=reader.read();
-            if(charValue==-1) {
-                return;
-            }
-            inputSb.append((char)charValue);
+        int numReaded=reader.read(tempCharArr, 0, chunkSize);
+        if(numReaded==-1) {
+            return;
+        }
+        for(int i=0; i<numReaded; i++) {
+            inputSb.append(tempCharArr[i]);
         }
         if(!isDelims(inputSb.charAt(inputSb.length()-1))) {
             int charValue = reader.read();
