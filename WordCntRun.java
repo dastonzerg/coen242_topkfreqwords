@@ -6,17 +6,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class WordCntRun implements Runnable {
     private StringBuilder inputSb=null;
-    private Hashtable<String, Integer> mainTable;
+    private Map<String, Integer> mainMap;
     private Map<String, Integer> wordCnt=null;
     private BufferedReader reader;
-    private ReentrantLock lock;
+    private ReentrantLock readerLock;
+    private ReentrantLock mapLock;
     private final int chunkSize=102_4000;
     private char[] tempCharArr=new char[chunkSize];
 
-    private WordCntRun(Hashtable<String, Integer> _mainTable, BufferedReader _reader, ReentrantLock _lock) {
-        mainTable=_mainTable;
+    private WordCntRun(Map<String, Integer> _mainMap, BufferedReader _reader, ReentrantLock _readerLock, ReentrantLock _mapLock) {
+        mainMap=_mainMap;
         reader=_reader;
-        lock=_lock;
+        readerLock =_readerLock;
+        mapLock=_mapLock;
     }
 
     private static boolean isDelims(char ch) {
@@ -48,17 +50,17 @@ public class WordCntRun implements Runnable {
         }
     }
 
-    private void updateToMainTable() {
+    private void updateToMainMap() {
         for(Map.Entry<String, Integer> entry:wordCnt.entrySet()) {
             String word=entry.getKey();
             int cnt=entry.getValue();
-            mainTable.put(word, mainTable.getOrDefault(word, 0)+cnt);
+            mainMap.put(word, mainMap.getOrDefault(word, 0)+cnt);
         }
     }
 
     public void run() {
         while(true) {
-            lock.lock();
+            readerLock.lock();
             try {
                 fetchSb();
             } catch (Exception e) {
@@ -67,7 +69,7 @@ public class WordCntRun implements Runnable {
                 wordCnt=null;
                 break;
             } finally {
-                lock.unlock();
+                readerLock.unlock();
             }
             if (inputSb.length() == 0) {
                 break;
@@ -86,7 +88,9 @@ public class WordCntRun implements Runnable {
                 String word = inputSb.substring(start);
                 wordCnt.put(word, wordCnt.getOrDefault(word, 0) + 1);
             }
-            updateToMainTable();
+            mapLock.lock();
+            updateToMainMap();
+            mapLock.unlock();
             inputSb = null;
             wordCnt=null;
         }
@@ -109,11 +113,12 @@ public class WordCntRun implements Runnable {
                 (o1, o2)->!o1.getValue().equals(o2.getValue())
                         ?Integer.compare(o1.getValue(), o2.getValue())
                         :o2.getKey().compareTo(o1.getKey()));
-        Hashtable<String, Integer> mainTable=new Hashtable<>();
-        ReentrantLock lock=new ReentrantLock();
+        Map<String, Integer> mainMap=new HashMap<>();
+        ReentrantLock readerLock=new ReentrantLock();
+        ReentrantLock mapLock=new ReentrantLock();
 
         for(int i=1; i<=N; i++) {
-            Thread thread=new Thread(new WordCntRun(mainTable, reader, lock));
+            Thread thread=new Thread(new WordCntRun(mainMap, reader, readerLock, mapLock));
             thread.start();
             threadList.add(thread);
         }
@@ -121,7 +126,7 @@ public class WordCntRun implements Runnable {
         for(Thread thread:threadList) {
             thread.join();
         }
-        for(Map.Entry<String, Integer> entry:mainTable.entrySet()) {
+        for(Map.Entry<String, Integer> entry:mainMap.entrySet()) {
             minHeap.add(entry);
             if(minHeap.size()==101) {
                 minHeap.poll();
