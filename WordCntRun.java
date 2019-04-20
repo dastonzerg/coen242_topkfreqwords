@@ -21,6 +21,7 @@ public class WordCntRun implements Runnable {
         mapLock=_mapLock;
     }
 
+    // isDelims is used to check if a char is a \s, \r or \n
     private static boolean isDelims(char ch) {
         String str=" \r\n";
         for(char c:str.toCharArray()) {
@@ -31,6 +32,8 @@ public class WordCntRun implements Runnable {
         return false;
     }
 
+    // fetchSb() is called when the thread has already counted the whole chunk,
+    // and then it will try to get the next chunk
     private void fetchSb() throws Exception {
         inputSb=new StringBuilder();
         wordCnt=new HashMap<>();
@@ -38,6 +41,7 @@ public class WordCntRun implements Runnable {
         if(numReaded==-1) {
             return;
         }
+
         for(int i=0; i<numReaded; i++) {
             inputSb.append(tempCharArr[i]);
         }
@@ -60,6 +64,7 @@ public class WordCntRun implements Runnable {
 
     public void run() {
         while(true) {
+            // each thread is using the same BufferedReader so a lock is required here
             readerLock.lock();
             try {
                 fetchSb();
@@ -71,6 +76,7 @@ public class WordCntRun implements Runnable {
             } finally {
                 readerLock.unlock();
             }
+            // if inputSb didn't get anything, then it is the EOF
             if (inputSb.length() == 0) {
                 break;
             }
@@ -84,10 +90,13 @@ public class WordCntRun implements Runnable {
                     start = i + 1;
                 }
             }
+            // we might lose the last word if the end of the chunk is not a space
             if (!isDelims(inputSb.charAt(inputSb.length() - 1))) {
                 String word = inputSb.substring(start);
                 wordCnt.put(word, wordCnt.getOrDefault(word, 0) + 1);
             }
+            // we use the same main HashMap for every thread to update to, so
+            // a lock is required here for thread safe
             mapLock.lock();
             updateToMainMap();
             mapLock.unlock();
@@ -98,8 +107,6 @@ public class WordCntRun implements Runnable {
 
     public static void main(String[] args) throws Exception {
         if(args.length!=2) {
-            System.out.println(Runtime.getRuntime().maxMemory());
-            System.out.println(Runtime.getRuntime().freeMemory());
             System.out.println("Not enough arguments. Usage: \"WordCntRun.java filepath threadNum\"");
             return;
         }
@@ -107,16 +114,20 @@ public class WordCntRun implements Runnable {
         int N=Integer.valueOf(args[1]);
         File file=new File(args[0]);
         BufferedReader reader=new BufferedReader(new FileReader(file));
-        System.out.println(file.length());
+        System.out.println("File size in bytes: "+file.length());
         List<Thread> threadList=new ArrayList<>();
+        // minHeap is used here to get the top 100 words, the heap size is controlled
+        // at 100 for lower time complexity
         PriorityQueue<Map.Entry<String, Integer>> minHeap=new PriorityQueue<>(
                 (o1, o2)->!o1.getValue().equals(o2.getValue())
                         ?Integer.compare(o1.getValue(), o2.getValue())
                         :o2.getKey().compareTo(o1.getKey()));
+        // this is the mainMap that each thread will update their counts to
         Map<String, Integer> mainMap=new HashMap<>();
         ReentrantLock readerLock=new ReentrantLock();
         ReentrantLock mapLock=new ReentrantLock();
 
+        // start all the N threads
         for(int i=1; i<=N; i++) {
             Thread thread=new Thread(new WordCntRun(mainMap, reader, readerLock, mapLock));
             thread.start();
@@ -136,6 +147,7 @@ public class WordCntRun implements Runnable {
         System.out.println("Total Execution Time is: "+(endTime-startTime)/1000+" s");
         System.out.println("The Top 100 Words are: ");
         System.out.println(String.format("%30s%40s", "Word", "Frequency"));
+        // a LinkedList is used here to print the results in minHeap in the right order
         LinkedList<Map.Entry<String, Integer>> resLst=new LinkedList<>();
         while(!minHeap.isEmpty()) {
             resLst.addFirst(minHeap.poll());
